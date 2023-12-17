@@ -92,7 +92,10 @@ def monitor(counter, running):
     while True:
         time.sleep(10)
         with counter.get_lock():
-            print('%s   %s %%' % (counter.value, counter.value / seeds_len))
+            print('%s   %s %%' % (
+                counter.value,
+                counter.value / seeds_len * 100,
+            ))
         with running.get_lock():
             if not running.value:
                 return

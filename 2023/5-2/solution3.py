@@ -2,8 +2,10 @@ import moderngl
 import numpy as np
 import re
 
+MAX = 1024  # TODO: how to get MAX_COMPUTE_WORK_GROUP_SIZE value
 
-with open('./test.txt', 'r') as f:
+
+with open('./input.txt', 'r') as f:
     input = f.read().strip()
 
 group = input.split('\n\n')
@@ -44,52 +46,71 @@ for i in range(len(seeds) // 2):
 seeds_len = sum(length for _, length in seeds_range)
 
 with open('./solution3_compute_shader.glsl', 'r') as f:
-    shader_code = f.read()
+    shader_code_template = f.read()
 
-shader_code = shader_code % (
-    seeds_len,
-    len(seeds_range),
-    len(seedToSoil),
-    len(soilToFertilizer),
-    len(fertilizerToWater),
-    len(waterToLight),
-    len(lightToTemperature),
-    len(temperatureToHumidity),
-    len(humidityToLocation),
-)
 
-# Initialize OpenGL context and compute shader
-ctx = moderngl.create_standalone_context()
-compute_shader = ctx.compute_shader(shader_code)
+def get_min_loc(work_group_size, work_group_start):
+    shader_code = shader_code_template % (
+        work_group_size,
+        work_group_start,
+        len(seeds_range),
+        len(seedToSoil),
+        len(soilToFertilizer),
+        len(fertilizerToWater),
+        len(waterToLight),
+        len(lightToTemperature),
+        len(temperatureToHumidity),
+        len(humidityToLocation),
+    )
 
-# Prepare input and output buffers
-output_array = np.zeros(seeds_len, dtype=np.float32)
-seeds_data = np.array(seeds_range, dtype=np.float32)
-data = np.array(
-    seedToSoil +
-    soilToFertilizer +
-    fertilizerToWater +
-    waterToLight +
-    lightToTemperature +
-    temperatureToHumidity +
-    humidityToLocation, dtype=np.float32)
+    # Initialize OpenGL context and compute shader
+    ctx = moderngl.create_standalone_context()
+    compute_shader = ctx.compute_shader(shader_code)
 
-output_buffer = ctx.buffer(output_array.tobytes())
-seeds_buffer = ctx.buffer(seeds_data.tobytes())
-data_buffer = ctx.buffer(data.tobytes())
+    # Prepare input and output buffers
+    output_array = np.zeros(work_group_size, dtype=np.float32)
+    seeds_data = np.array(seeds_range, dtype=np.float32)
+    data = np.array(
+        seedToSoil +
+        soilToFertilizer +
+        fertilizerToWater +
+        waterToLight +
+        lightToTemperature +
+        temperatureToHumidity +
+        humidityToLocation, dtype=np.float32)
 
-output_buffer.bind_to_storage_buffer(0)
-seeds_buffer.bind_to_storage_buffer(1)
-data_buffer.bind_to_storage_buffer(2)
+    output_buffer = ctx.buffer(output_array.tobytes())
+    seeds_buffer = ctx.buffer(seeds_data.tobytes())
+    data_buffer = ctx.buffer(data.tobytes())
 
-# Execute compute shader
-compute_shader.run(seeds_len)
+    output_buffer.bind_to_storage_buffer(0)
+    seeds_buffer.bind_to_storage_buffer(1)
+    data_buffer.bind_to_storage_buffer(2)
 
-# Retrieve output data
-output_buffer.bind_to_storage_buffer(0)
-output_data = np.frombuffer(output_buffer.read(), dtype=np.float32)
+    # Execute compute shader
+    compute_shader.run(work_group_size)
 
-# # Print the cube of each number
-# for i, value in enumerate(output_data):
-#     print(f"The cube of {i+1} is {value}")
-print(min(output_data))
+    # Retrieve output data
+    output_buffer.bind_to_storage_buffer(0)
+    output_data = np.frombuffer(output_buffer.read(), dtype=np.float32)
+
+    return min(output_data)
+
+
+result = []
+current_idx = 0
+while True:
+    print('%s/%s    %s %%' % (
+        current_idx,
+        seeds_len,
+        current_idx / seeds_len * 100,
+    ))
+    if current_idx >= seeds_len:
+        break
+    start_idx = current_idx
+    current_idx += MAX
+    if current_idx > seeds_len:
+        current_idx = seeds_len
+    result.append(get_min_loc(current_idx - start_idx, start_idx))
+
+print(min(result))

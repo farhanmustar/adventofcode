@@ -42,6 +42,7 @@ float trans_item(int start, int len, float ipt) {
 }
 
 void main() {
+  int wg_start = %s;
   int seeds_len = %s;
   int seedToSoil_len = %s;
   int soilToFertilizer_len = %s;
@@ -52,10 +53,10 @@ void main() {
   int humidityToLocation_len = %s;
 
   int global_id = int(gl_GlobalInvocationID.x);
-  int idx = global_id + 1;
+  int idx = global_id + wg_start;
 
   int start = 0;
-  float seed = get_seeds(seeds_len, global_id);
+  float seed = get_seeds(seeds_len, idx);
   float soil = trans_item(start, seedToSoil_len, seed);
   start += seedToSoil_len;
   float fert = trans_item(start, soilToFertilizer_len, soil);
