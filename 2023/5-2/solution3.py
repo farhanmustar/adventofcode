@@ -1,4 +1,5 @@
 import moderngl
+import concurrent.futures
 import numpy as np
 import re
 
@@ -97,20 +98,28 @@ def get_min_loc(work_group_size, work_group_start):
     return min(output_data)
 
 
-result = []
 current_idx = 0
+args = []
 while True:
-    print('%s/%s    %s %%' % (
-        current_idx,
-        seeds_len,
-        current_idx / seeds_len * 100,
-    ))
     if current_idx >= seeds_len:
         break
     start_idx = current_idx
     current_idx += MAX
     if current_idx > seeds_len:
         current_idx = seeds_len
-    result.append(get_min_loc(current_idx - start_idx, start_idx))
+    args.append([current_idx - start_idx, start_idx])
 
-print(min(result))
+
+def worker(data):
+    return get_min_loc(*data)
+
+
+cpu_count = 50
+with concurrent.futures.ThreadPoolExecutor(max_workers=cpu_count) as executor:
+    results = [executor.submit(worker, a) for a in args]
+    for future in concurrent.futures.as_completed(results):
+        try:
+            result = future.result()
+            print(result)
+        except Exception as e:
+            print(f'An error occurred: {str(e)}')
