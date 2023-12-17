@@ -1,5 +1,3 @@
-import itertools
-import multiprocessing
 import re
 
 with open('./input.txt', 'r') as f:
@@ -51,11 +49,22 @@ seeds_range = []
 for i in range(len(seeds) // 2):
     seeds_range.append([seeds[i * 2], seeds[i * 2 + 1]])
 
+seeds_len = sum(length for _, length in seeds_range)
 
-def worker(data):
-    seeds_start, length = data
-    locations = []
+locations = []
+print_count = 30000
+count = 0
+for seeds_start, length in seeds_range:
     for s in range(seeds_start, seeds_start + length):
+        count += 1
+        print_count += 1
+        if print_count >= 30000:
+            print_count = 0
+            print('%s/%s   %s %%' % (
+                count,
+                seeds_len,
+                count / seeds_len * 100
+            ))
         soil = translate(seedToSoil, s)
         fert = translate(soilToFertilizer, soil)
         water = translate(fertilizerToWater, fert)
@@ -64,17 +73,6 @@ def worker(data):
         hum = translate(temperatureToHumidity, temp)
         loc = translate(humidityToLocation, hum)
         locations.append(loc)
-    return locations
 
-
-pool = multiprocessing.Pool(processes=multiprocessing.cpu_count())
-
-result = pool.map_async(worker, seeds_range)
-
-pool.close()
-pool.join()
-
-result = result.get()
-result = list(itertools.chain(*result))
-result = sorted(result)
-print(result)
+locations = sorted(locations)
+print(min(locations))
