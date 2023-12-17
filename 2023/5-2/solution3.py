@@ -48,63 +48,74 @@ seeds_len = sum(length for _, length in seeds_range)
 with open('./solution3_compute_shader.glsl', 'r') as f:
     shader_code_template = f.read()
 
+shader_code = shader_code_template % (
+    MAX,
+    len(seeds_range),
+    len(seedToSoil),
+    len(soilToFertilizer),
+    len(fertilizerToWater),
+    len(waterToLight),
+    len(lightToTemperature),
+    len(temperatureToHumidity),
+    len(humidityToLocation),
+)
+# Initialize OpenGL context and compute shader
+ctx = moderngl.create_standalone_context()
+compute_shader = ctx.compute_shader(shader_code)
+
+# Prepare input and output buffers
+output_array = np.zeros(MAX, dtype=np.float32)
+seeds_data = np.array(seeds_range, dtype=np.float32)
+wg_data = np.array([0, 0], dtype=np.int32)
+
+data = np.array(
+    seedToSoil +
+    soilToFertilizer +
+    fertilizerToWater +
+    waterToLight +
+    lightToTemperature +
+    temperatureToHumidity +
+    humidityToLocation, dtype=np.float32)
+
+output_buffer = ctx.buffer(output_array.tobytes())
+seeds_buffer = ctx.buffer(seeds_data.tobytes())
+data_buffer = ctx.buffer(data.tobytes())
+
+output_buffer.bind_to_storage_buffer(0)
+seeds_buffer.bind_to_storage_buffer(1)
+data_buffer.bind_to_storage_buffer(2)
+
 
 def get_min_loc(work_group_size, work_group_start):
-    shader_code = shader_code_template % (
-        work_group_size,
-        work_group_start,
-        len(seeds_range),
-        len(seedToSoil),
-        len(soilToFertilizer),
-        len(fertilizerToWater),
-        len(waterToLight),
-        len(lightToTemperature),
-        len(temperatureToHumidity),
-        len(humidityToLocation),
-    )
+    wg_data[0] = work_group_start
+    wg_data[1] = work_group_size
+    wg_buffer = ctx.buffer(wg_data.tobytes())
 
-    # Initialize OpenGL context and compute shader
-    ctx = moderngl.create_standalone_context()
-    compute_shader = ctx.compute_shader(shader_code)
-
-    # Prepare input and output buffers
-    output_array = np.zeros(work_group_size, dtype=np.float32)
-    seeds_data = np.array(seeds_range, dtype=np.float32)
-    data = np.array(
-        seedToSoil +
-        soilToFertilizer +
-        fertilizerToWater +
-        waterToLight +
-        lightToTemperature +
-        temperatureToHumidity +
-        humidityToLocation, dtype=np.float32)
-
-    output_buffer = ctx.buffer(output_array.tobytes())
-    seeds_buffer = ctx.buffer(seeds_data.tobytes())
-    data_buffer = ctx.buffer(data.tobytes())
-
-    output_buffer.bind_to_storage_buffer(0)
-    seeds_buffer.bind_to_storage_buffer(1)
-    data_buffer.bind_to_storage_buffer(2)
+    wg_buffer.bind_to_storage_buffer(3)
 
     # Execute compute shader
-    compute_shader.run(work_group_size)
+    compute_shader.run(MAX)
 
     # Retrieve output data
     output_buffer.bind_to_storage_buffer(0)
     output_data = np.frombuffer(output_buffer.read(), dtype=np.float32)
 
-    return min(output_data)
+    return min(output_data[:work_group_size])
 
 
 result = []
 current_idx = 0
+print_count = 100
 while True:
-    print('%s/%s    %s %%' % (
-        current_idx,
-        seeds_len,
-        current_idx / seeds_len * 100,
-    ))
+    print_count += 1
+    if print_count >= 100:
+        print_count = 0
+        print('%s/%s    %s %%' % (
+            current_idx,
+            seeds_len,
+            current_idx / seeds_len * 100,
+        ))
+
     if current_idx >= seeds_len:
         break
     start_idx = current_idx

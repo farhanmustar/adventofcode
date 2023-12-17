@@ -14,6 +14,10 @@ layout(std430, binding = 2) buffer dataBuffer {
   vec3 data[];
 };
 
+layout(std430, binding = 3) buffer workGroupBuffer {
+  int wg_data[];
+};
+
 float get_seeds(int seeds_len, int idx) {
   int seeds_idx = 0;
   for (int i = 0; i < seeds_len; i++) {
@@ -42,7 +46,6 @@ float trans_item(int start, int len, float ipt) {
 }
 
 void main() {
-  int wg_start = %s;
   int seeds_len = %s;
   int seedToSoil_len = %s;
   int soilToFertilizer_len = %s;
@@ -53,7 +56,10 @@ void main() {
   int humidityToLocation_len = %s;
 
   int global_id = int(gl_GlobalInvocationID.x);
-  int idx = global_id + wg_start;
+  int idx = global_id + wg_data[0];
+  if (idx >= wg_data[0] + wg_data[1]) {
+    return;
+  }
 
   int start = 0;
   float seed = get_seeds(seeds_len, idx);
